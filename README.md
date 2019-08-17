@@ -57,7 +57,7 @@ validate changes:
 Or bundle a standalone repl-cli:
 
 ```bash
-> yarn bundle
+> yarn build-bundle
 ```
 
 
