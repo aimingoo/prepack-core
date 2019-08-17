@@ -1,0 +1,31 @@
+[ignore]
+.*/node_modules/@babel/.*
+.*/test262/.*
+.*/node_modules/.*\.json
+.*/lib/.*
+.*/test/serializer/.*
+.*/scripts/prettier.js
+babel.config.js
+
+[include]
+
+[libs]
+flow-libs
+
+[options]
+merge_timeout=0
+suppress_comment= \\(.\\|\n\\)*\\$FlowFixMe
+esproposal.class_static_fields=enable
+esproposal.class_instance_fields=enable
+module.name_mapper='/lib/' -> '/src/'
+
+[strict]
+nonstrict-import
+unclear-type
+unsafe-getters-setters
+untyped-import
+untyped-type-import
+sketchy-null
+
+[version]
+^0.83.0
