@@ -42,13 +42,13 @@
     "prettier-ci": "node ./scripts/prettier.js"
   },
   "dependencies": {
-    "@babel/core": "^7.0.0",
+    "@babel/core": "^7.5.5",
     "@babel/generator": "^7.0.0",
     "@babel/node": "^7.0.0",
-    "@babel/parser": "^7.0.0",
+    "@babel/parser": "file:modules/babel-dev/packages/babel-parser",
     "@babel/preset-flow": "^7.0.0",
-    "@babel/template": "^7.0.0",
-    "@babel/traverse": "^7.0.0",
+    "@babel/template": "^7.4.4",
+    "@babel/traverse": "^7.5.5",
     "@babel/types": "^7.0.0",
     "fbjs": "^0.8.16",
     "node-zip": "^1.1.1",

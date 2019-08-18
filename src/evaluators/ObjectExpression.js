@@ -13,9 +13,10 @@ import type { Realm } from "../realm.js";
 import type { LexicalEnvironment } from "../environment.js";
 import type { PropertyKeyValue } from "../types.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
-import { AbstractValue, ConcreteValue, ObjectValue, StringValue } from "../values/index.js";
+import { AbstractValue, ConcreteValue, ObjectValue, StringValue, SymbolValue } from "../values/index.js";
 import { IsAnonymousFunctionDefinition, HasOwnProperty } from "../methods/index.js";
 import { Create, Environment, Functions, Properties, To } from "../singletons.js";
+import { PropertyDescriptor } from "../descriptors.js";
 import invariant from "../invariant.js";
 import type {
   BabelNodeObjectExpression,
@@ -26,7 +27,7 @@ import type {
 
 // Returns the result of evaluating PropertyName.
 export function EvalPropertyName(
-  prop: BabelNodeObjectProperty | BabelNodeObjectMethod | BabelNodeClassMethod,
+  prop: BabelNodeObjectMember | BabelNodeClassMethod | BabelNodeClassProperty,
   env: LexicalEnvironment,
   realm: Realm,
   strictCode: boolean
@@ -41,7 +42,7 @@ export function EvalPropertyName(
 }
 
 function EvalPropertyNamePartial(
-  prop: BabelNodeObjectProperty | BabelNodeObjectMethod | BabelNodeClassMethod,
+  prop: BabelNodeObjectMember | BabelNodeClassMethod | BabelNodeClassProperty,
   env: LexicalEnvironment,
   realm: Realm,
   strictCode: boolean
@@ -71,6 +72,7 @@ export default function(
 ): ObjectValue {
   // 1. Let obj be ObjectCreate(%ObjectPrototype%).
   let obj = Create.ObjectCreate(realm, realm.intrinsics.ObjectPrototype);
+  obj.$Private = Create.ObjectCreate(realm, realm.intrinsics.null);  // by aimingoo
 
   // 2. Let status be the result of performing PropertyDefinitionEvaluation of PropertyDefinitionList with arguments obj and true.
   for (let prop of ast.properties) {
@@ -111,7 +113,19 @@ export default function(
         }
         obj.$SetPartial(propKey, propValue, obj);
       } else {
-        Create.CreateDataPropertyOrThrow(realm, obj, propKey, propValue);
+        if (prop.accessibility !== "private") {
+          Create.CreateDataPropertyOrThrow(realm, obj, propKey, propValue);
+        }
+        else {
+          // @see TryWarpPrivateSymbol() in ../methods/properties.js
+          let targetObject = obj.$Private;
+          let ownDesc = targetObject.$GetOwnProperty(propKey);
+          if (!ownDesc) {
+            ownDesc = new PropertyDescriptor({value: new SymbolValue(realm)});
+            Properties.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
+          }
+          Create.CreateDataPropertyOrThrow(realm, targetObject, ownDesc.value, propValue);
+        }      
       }
     } else if (prop.type === "SpreadElement") {
       // 1. Let exprValue be the result of evaluating AssignmentExpression.

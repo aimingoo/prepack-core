@@ -36,7 +36,7 @@ import {
   UndefinedValue,
   Value,
 } from "../values/index.js";
-import { OrdinaryCallEvaluateBody, OrdinaryCallBindThis, PrepareForOrdinaryCall, Call } from "./call.js";
+import { OrdinaryCallEvaluateBody, OrdinaryCallBindThis, OrdinaryCallBindPrivate, PrepareForOrdinaryCall, Call } from "./call.js";
 import { SameValue } from "../methods/abstract.js";
 import { Construct } from "../methods/construct.js";
 import { UpdateEmpty } from "../methods/index.js";
@@ -101,7 +101,7 @@ function InternalCall(
 
     // 4. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
     let calleeContext = PrepareForOrdinaryCall(realm, F, undefined);
-    let calleeEnv = calleeContext.lexicalEnvironment;
+    let privateEnv, calleeEnv = calleeContext.lexicalEnvironment;
 
     let result;
     try {
@@ -113,11 +113,20 @@ function InternalCall(
       // 6. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
       OrdinaryCallBindThis(realm, F, calleeContext, thisArgument);
 
+      // Binding private environment
+      privateEnv = OrdinaryCallBindPrivate(realm, F, calleeContext, thisArgument);
+
       // 7. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
       result = OrdinaryCallEvaluateBody(realm, F, argsList);
     } finally {
       // 8. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
       realm.popContext(calleeContext);
+      // Remove private environment
+      if (!(privateEnv instanceof UndefinedValue)) {
+        invariant(calleeEnv.parent === privateEnv); // recheck
+        calleeEnv.parent = privateEnv.parent; // reset
+        realm.onDestroyScope(privateEnv); // removed
+      }
       realm.onDestroyScope(calleeContext.lexicalEnvironment);
       if (calleeContext.lexicalEnvironment !== calleeEnv) realm.onDestroyScope(calleeEnv);
       invariant(realm.getRunningContext() === callerContext);
@@ -242,6 +251,8 @@ function InternalConstruct(
     let result, envRec;
     try {
       for (let t1 of realm.tracers) t1.beforeCall(F, thisArgument, argumentsList, newTarget);
+
+      thisArgument.$Private = Create.ObjectCreate(realm, F.$Get("prototype").$Private);
 
       // 8. If kind is "base", perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
       if (kind === "base") {

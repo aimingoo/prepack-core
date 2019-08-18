@@ -1428,6 +1428,11 @@ export function mightBecomeAnObject(base: Value): boolean {
   );
 }
 
+export function isPrivateEnvironment(env: EnvironmentRecord): boolean {
+  return (env instanceof ObjectEnvironmentRecord) &&
+    (env.privateBase instanceof ObjectValue);
+}
+
 export class Reference {
   base: BaseValue | AbstractValue;
   referencedName: ReferenceName | AbstractValue;
@@ -1455,7 +1460,13 @@ export class Reference {
         refName.$Realm.isInPureScope()
     );
     this.strict = strict;
-    this.thisValue = thisValue;
-    invariant(thisValue === undefined || !(base instanceof EnvironmentRecord));
+
+    if (isPrivateEnvironment(base)) {
+      this.thisValue = base.privateBase;
+    }
+    else {
+      this.thisValue = thisValue;
+      invariant(thisValue === undefined || !(base instanceof EnvironmentRecord));
+    }
   }
 }
