@@ -11,16 +11,22 @@ The prepack-core  for proposal-private-property.
 
 ```bash
 # Pick this branch
-> git clone https://github.com/aimingoo/prepack-core.git#proposal-private-property
+> git clone -b proposal-private-property https://github.com/aimingoo/prepack-core
 
 # Init submodules
 > git submodule init
-> git git submodule update
-#(OR recursived clone)
-> git clone --recursive https://github.com/aimingoo/prepack-core.git#proposal-private-property
+> git submodule update
+#(OR, recursived clone)
+> git clone -b proposal-private-property --recursive https://github.com/aimingoo/prepack-core
 
 # Install packages
 > npm install
+
+# Install babel and yarn, build it
+> npm run build-repl
+# (OR, with yarn)
+> npm install -g yarn
+> yarn build
 
 # Launch repl
 > npm run repl
@@ -32,7 +38,7 @@ The prepack-core  for proposal-private-property.
 ## First testcase
 
 ```bash
-# run first testcast
+# run first testcase
 > npm run repl test/private-property/simple-class.js
 100
 200
@@ -44,3 +50,4 @@ The prepack-core  for proposal-private-property.
 ## History
 
 * 2019.08.19	first release.
+
