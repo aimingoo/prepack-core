@@ -19,11 +19,11 @@
   "bin": {
     "prepack-repl": "bin/prepack-repl.js"
   },
-  "main": "lib/repl-cli.js",
+  "main": "lib/index.js",
   "scripts": {
     "build": "yarn build-repl",
     "build-scripts": "babel scripts --out-dir lib --source-maps",
-    "build-bundle": "webpack-cli --silent",
+    "build-bundle": "webpack-cli --silent --output-library-target commonjs2",
     "build-repl": "babel src --out-dir lib --source-maps",
     "watch": "babel src scripts --out-dir lib --watch --source-maps --verbose",
     "lint": "eslint src scripts",

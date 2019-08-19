@@ -16,12 +16,12 @@ const WebpackConfig = {
   output: {
     path: path.join(__dirname),
     filename: "prepack.min.js",
-    library: "Prepack",
+    library: "Prepack"
   },
   target: 'node',
   node: { fs: 'empty' },
   parallelism: 1,
-  profile: true,
+  profile: false,
   mode: "production",
   optimization: {
     minimize: true,
