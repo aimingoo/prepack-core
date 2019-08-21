@@ -1,6 +1,6 @@
 # Prepack-core: proposal-protected-property
 
-The prepack-core  for proposal-private-property.
+The prepack-core  for proposal-protected-property.
 
  - Support protected-property for class.
  - Testcases.
