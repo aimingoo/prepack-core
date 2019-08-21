@@ -152,12 +152,14 @@ export function ClassDefinitionEvaluation(
 
     // Provide a hint that this prototype is that of a class
     proto.$IsClassPrototype = true;
+    proto.$Protected = Create.ObjectCreate(realm, protoParent && protoParent.$Protected || realm.intrinsics.null);
+    proto.$Private = Create.ObjectCreate(realm, proto.$Protected);
 
     let constructor;
     let emptyConstructor = false;
     let ClassBody: Array<BabelNodeClassMethod> = [];
     for (let elem of ast.body.body) {
-      if (elem.type === "ClassMethod") {
+      if (elem.type === "ClassMethod" || elem.type === "ClassProperty") {
         ClassBody.push(elem);
       }
     }
@@ -179,7 +181,7 @@ export function ClassDefinitionEvaluation(
         // i. Let constructor be the result of parsing the source text
         //     constructor(... args){ super (...args);}
         // using the syntactic grammar with the goal symbol MethodDefinition.
-        constructorFile = parse(realm, "class NeedClassForParsing { constructor(... args){ super (...args);} }", "");
+        constructorFile = parse(realm, "class NeedClassForParsing extends Object { constructor(... args){ super (...args);} }", "");
       } else {
         // b. Else,
         // i. Let constructor be the result of parsing the source text
@@ -225,29 +227,30 @@ export function ClassDefinitionEvaluation(
       // 17. Perform MakeClassConstructor(F).
       MakeClassConstructor(realm, F);
 
+      F.$Protected = Create.ObjectCreate(realm, constructorParent && constructorParent.$Protected || realm.intrinsics.null);
+      F.$Private = Create.ObjectCreate(realm, F.$Protected);
+
       // 18. Perform CreateMethodProperty(proto, "constructor", F).
       Create.CreateMethodProperty(realm, proto, "constructor", F);
 
-      let methods;
+      let members;
       // 19. If ClassBody opt is not present, let methods be a new empty List.
       if (ClassBody.length === 0) {
-        methods = [];
+        members = [];
       } else {
         // 20. Else, let methods be NonConstructorMethodDefinitions of ClassBody.
-        methods = NonConstructorMethodDefinitions(realm, ClassBody);
+        members = NonConstructorMethodDefinitions(realm, ClassBody)
       }
 
+      // 21.a. If IsStatic of m is false, then
+      //  Let status be the result of performing PropertyDefinitionEvaluation for m with arguments proto and false.
+      // Else,
+      //  Let status be the result of performing PropertyDefinitionEvaluation for m with arguments F and false.
+      let target = x => IsStatic(x) ? F : proto;
+
       // 21. For each ClassElement m in order from methods
-      for (let m of methods) {
-        // a. If IsStatic of m is false, then
-        if (!IsStatic(m)) {
-          // Let status be the result of performing PropertyDefinitionEvaluation for m with arguments proto and false.
-          Properties.PropertyDefinitionEvaluation(realm, m, proto, (env: any), strictCode, false);
-        } else {
-          // Else,
-          // Let status be the result of performing PropertyDefinitionEvaluation for m with arguments F and false.
-          Properties.PropertyDefinitionEvaluation(realm, m, F, (env: any), strictCode, false);
-        }
+      for (let m of members) {
+        Properties.PropertyDefinitionEvaluation(realm, m, target(m), (env: any), strictCode, false);
         // c. If status is an abrupt completion, then
         // i. Set the running execution context's LexicalEnvironment to lex.
         // ii. Return Completion(status).

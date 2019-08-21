@@ -301,6 +301,28 @@ export function OrdinaryCallBindThis(
   return envRec.BindThisValue(thisValue);
 }
 
+export function OrdinaryCallBindPrivate(
+  realm: Realm,
+  F: ECMAScriptFunctionValue,
+  calleeContext: ExecutionContext,
+  thisArgument: NullValue | ObjectValue
+): NullValue | ObjectValue | AbstractObjectValue | UndefinedValue {
+  if ((F.$HomeObject !== undefined) &&
+      (thisArgument !== undefined)) {
+    let localEnv = calleeContext.lexicalEnvironment;
+    let P = F.$HomeObject.$Private;
+    let E = localEnv.parent;
+    invariant(E === F.$Environment);
+
+    let newEnv = Environment.NewObjectEnvironment(realm, P, E);
+    newEnv.environmentRecord.withEnvironment = true;
+    newEnv.environmentRecord.privateBase = thisArgument;
+    localEnv.parent = newEnv;
+    return newEnv;
+  }
+  return realm.intrinsics.undefined;
+}
+
 function callNativeFunctionValue(
   realm: Realm,
   f: NativeFunctionValue,

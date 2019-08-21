@@ -32,6 +32,7 @@ import {
   FunctionEnvironmentRecord,
   GlobalEnvironmentRecord,
   isValidBaseValue,
+  isPrivateEnvironment,
   LexicalEnvironment,
   ObjectEnvironmentRecord,
   Reference,
@@ -160,7 +161,7 @@ export class EnvironmentImplementation {
 
   // ECMA262 6.2.3
   // IsSuperReference(V). Returns true if this reference has a thisValue component.
-  IsSuperReference(realm: Realm, V: Reference): boolean {
+  IsSuperOrPrivateReference(realm: Realm, V: Reference): boolean {
     return V.thisValue !== undefined;
   }
 
@@ -316,6 +317,14 @@ export class EnvironmentImplementation {
       // a. Return ? base.GetBindingValue(GetReferencedName(V), IsStrictReference(V)) (see 8.1.1).
       let referencedName = this.GetReferencedName(realm, V);
       invariant(typeof referencedName === "string");
+
+      if (isPrivateEnvironment(base)) {
+        let thisObject = GetThisValue(realm, V);
+        let baseObject = base.WithBaseObject();
+        let privateSymbol = baseObject.$Get(referencedName, baseObject);
+        return thisObject.$Private.$Get(privateSymbol, thisObject);
+      }
+
       return base.GetBindingValue(referencedName, this.IsStrictReference(realm, V));
     }
 
@@ -682,6 +691,28 @@ export class EnvironmentImplementation {
       invariant(outer);
 
       // e. Let lex be outer.
+      lex = outer;
+    }
+
+    invariant(false);
+  }
+
+  GetPrivateEnvironment(realm: Realm): EnvironmentRecord {
+    // 1. Let lex be the running execution context's LexicalEnvironment.
+    let lex = realm.getRunningContext().lexicalEnvironment;
+
+    // 2. Repeat
+    while (true) {
+      // a. Let envRec be lex's EnvironmentRecord.
+      let envRec = lex.environmentRecord;
+
+      if (isPrivateEnvironment(envRec)) return envRec;
+
+      // b. Let outer be the value of lex's outer environment reference.
+      let outer = lex.parent;
+      invariant(outer);
+
+      // c. Let lex be outer.
       lex = outer;
     }
 

@@ -1,4 +1,9 @@
 [submodule "test/test262"]
 	path = test/test262
 	url = https://github.com/tc39/test262
-ignore = all
+	ignore = all
+
+[submodule "modules/babel-dev"]
+	path = modules/babel-dev
+	url = https://github.com/aimingoo/babel-dev
+        ignore = all

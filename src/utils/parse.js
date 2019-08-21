@@ -27,7 +27,7 @@ export default function(
   startLine: number = 1
 ): BabelNodeFile {
   try {
-    let plugins = ["objectRestSpread"];
+    let plugins = ["objectRestSpread", "classProperties"];
     if (realm.stripFlow) {
       plugins.push("flow");
     }

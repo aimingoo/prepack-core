@@ -27,7 +27,7 @@ import {
   UndefinedValue,
   Value,
 } from "../values/index.js";
-import { Reference } from "../environment.js";
+import { Reference, ObjectEnvironmentRecord } from "../environment.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
 import { SetIntegrityLevel } from "./integrity.js";
 import {
@@ -667,11 +667,12 @@ export function GetV(realm: Realm, V: Value, P: PropertyKeyValue): Value {
 // ECMA262 6.2.3.3
 export function GetThisValue(realm: Realm, V: Reference): Value {
   // 1. Assert: IsPropertyReference(V) is true.
-  invariant(Environment.IsPropertyReference(realm, V), "expected property reference");
+  invariant((V.base instanceof ObjectEnvironmentRecord) ||
+    Environment.IsPropertyReference(realm, V), "expected property reference");
 
   // 2. If IsSuperReference(V) is true, then
-  if (Environment.IsSuperReference(realm, V)) {
-    invariant(V.thisValue !== undefined);
+  if (Environment.IsSuperOrPrivateReference(realm, V)) {
+    invariant(V.thisValue !== undefined, "WhY?");
     // a. Return the value of the thisValue component of the reference V.
     return V.thisValue;
   }

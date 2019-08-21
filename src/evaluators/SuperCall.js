@@ -15,7 +15,7 @@ import type { LexicalEnvironment } from "../environment.js";
 import { FunctionEnvironmentRecord } from "../environment.js";
 import { Value, UndefinedValue, ObjectValue } from "../values/index.js";
 import { GetNewTarget, ArgumentListEvaluation, Construct, IsConstructor } from "../methods/index.js";
-import { Environment } from "../singletons.js";
+import { Create, Environment } from "../singletons.js";
 import invariant from "../invariant.js";
 
 function GetSuperConstructor(realm: Realm) {
@@ -72,6 +72,17 @@ export default function SuperCall(
   let result = Construct(realm, func, argList, newTarget).throwIfNotConcreteObject();
 
   // 8. ReturnIfAbrupt(result).
+
+  // set base object of private scope
+  if ((result.$Private === undefined) &&
+      (newTarget.$FunctionKind === "classConstructor")) {
+    let targetProto = newTarget.$Get("prototype"); // cant delete, valid always
+    if (targetProto === result.$GetPrototypeOf()) { // new AClass() only
+      result.$Private = Create.ObjectCreate(realm, targetProto.$Private || realm.intrinsics.null);
+    }
+  }
+  let privateER = Environment.GetPrivateEnvironment(realm);
+  privateER.privateBase = result;
 
   // 9. Let thisER be GetThisEnvironment( ).
   let thisER = Environment.GetThisEnvironment(realm);

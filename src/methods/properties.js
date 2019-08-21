@@ -27,8 +27,9 @@ import {
   Value,
 } from "../values/index.js";
 import { EvalPropertyName } from "../evaluators/ObjectExpression.js";
-import { EnvironmentRecord, Reference } from "../environment.js";
+import { EnvironmentRecord, ObjectEnvironmentRecord, Reference, isPrivateEnvironment } from "../environment.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
+import { HasProperty, HasOwnProperty } from "./has.js";
 import invariant from "../invariant.js";
 import {
   Call,
@@ -45,7 +46,7 @@ import {
   SameValue,
   SameValuePartial,
 } from "./index.js";
-import { type BabelNodeObjectMethod, type BabelNodeClassMethod, isValidIdentifier } from "@babel/types";
+import { type BabelNodeObjectMember, type BabelNodeClassMethod, type BabelNodeClassProperty, isValidIdentifier } from "@babel/types";
 import type { LexicalEnvironment } from "../environment.js";
 import { Create, Environment, Functions, Leak, Join, Path, To } from "../singletons.js";
 import IsStrict from "../utils/strict.js";
@@ -1291,10 +1292,45 @@ export class PropertiesImplementation {
 
     // 7. Else base must be an Environment Record,
     if (base instanceof EnvironmentRecord) {
-      // a. Return ? base.SetMutableBinding(GetReferencedName(V), W, IsStrictReference(V)) (see 8.1.1).
       let referencedName = Environment.GetReferencedName(realm, V);
       invariant(typeof referencedName === "string");
-      return base.SetMutableBinding(referencedName, W, Environment.IsStrictReference(realm, V));
+
+      if (isPrivateEnvironment(base)) {
+        let thisObject = GetThisValue(realm, V);
+        let baseObject = base.WithBaseObject();
+        let privateSymbol = baseObject.$Get(referencedName, baseObject);
+        let objectPrivate = thisObject.$Private;
+
+        let ownDesc = objectPrivate.$GetOwnProperty(privateSymbol);
+        if (ownDesc && IsDataDescriptor(realm, ownDesc)) {
+          return objectPrivate.$Set(privateSymbol, W, objectPrivate);
+        }
+
+        let parent = objectPrivate;
+        while (!ownDesc) {
+          parent = parent.$GetPrototypeOf();
+          if (parent instanceof NullValue) break;
+          ownDesc = parent.$GetOwnProperty(privateSymbol)
+        }
+
+        invariant(ownDesc !== undefined);
+
+        if (IsAccessorDescriptor(realm, ownDesc)) {
+          // @see OrdinarySetHelper() 6~9
+          // return this.Set(realm, parent, privateSymbol, W, false);
+          return parent.$Set(privateSymbol, W, thisObject);
+        }
+        else {
+          // Put W in private of thisObject when super has privateSymbol's ownDesc
+          let desc: Descriptor = new PropertyDescriptor({
+            value: W, writable: true, enumerable: true, configurable: true});
+          return this.DefinePropertyOrThrow(realm, objectPrivate, privateSymbol, desc);
+        }
+      }
+      else {
+        // a. Return ? base.SetMutableBinding(GetReferencedName(V), W, IsStrictReference(V)) (see 8.1.1).
+        return base.SetMutableBinding(referencedName, W, Environment.IsStrictReference(realm, V));
+      }
     }
 
     invariant(false);
@@ -1808,12 +1844,32 @@ export class PropertiesImplementation {
   // ECMA 14.3.9
   PropertyDefinitionEvaluation(
     realm: Realm,
-    MethodDefinition: BabelNodeObjectMethod | BabelNodeClassMethod,
+    MethodDefinition: BabelNodeObjectMember | BabelNodeClassMethod | BabelNodeClassProperty,
     object: ObjectValue,
     env: LexicalEnvironment,
     strictCode: boolean,
     enumerable: boolean
   ): boolean {
+    let accessibility = MethodDefinition.accessibility || "public";
+
+    let isPrivateMember = (accessibility === "protected") || (accessibility === "private");
+
+    let targetObject = (accessibility === "private") ? object.$Private
+      : (accessibility === "protected") ? object.$Protected
+      : (accessibility === "public") ? object
+      : invariant(accessibility===undefined, "Unknown accessibility definition");
+
+    let TryWarpPrivateSymbol = (propKey) => {
+      if (!isPrivateMember) return propKey;
+      // ignore duplicate key for get/setter methods
+      let ownDesc = targetObject.$GetOwnProperty(propKey);
+      if (!ownDesc) {
+        ownDesc = new PropertyDescriptor({value: new SymbolValue(realm)});
+        this.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
+      }
+      return ownDesc.value;
+    }
+
     // MethodDefinition : PropertyName ( StrictFormalParameters ) { FunctionBody }
     if (MethodDefinition.kind === "method") {
       // 1. Let methodDef be DefineMethod of MethodDefinition with argument object.
@@ -1836,7 +1892,7 @@ export class PropertiesImplementation {
       });
 
       // 5. Return DefinePropertyOrThrow(object, methodDef.[[key]], desc).
-      return this.DefinePropertyOrThrow(realm, object, methodDef.$Key, desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(methodDef.$Key), desc);
     } else if (MethodDefinition.kind === "generator") {
       // MethodDefinition : GeneratorMethod
       // See 14.4.
@@ -1883,7 +1939,7 @@ export class PropertiesImplementation {
       });
 
       // 11. Return DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, object, propKey, desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
     } else if (MethodDefinition.kind === "get") {
       // 1. Let propKey be the result of evaluating PropertyName.
       let propKey = EvalPropertyName(MethodDefinition, env, realm, strictCode);
@@ -1926,9 +1982,9 @@ export class PropertiesImplementation {
       });
 
       // 10. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, object, propKey, desc);
-    } else {
-      invariant(MethodDefinition.kind === "set");
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+    } else if (MethodDefinition.kind === "set") {
+      // invariant(MethodDefinition.kind === "set");
       // 1. Let propKey be the result of evaluating PropertyName.
       let propKey = EvalPropertyName(MethodDefinition, env, realm, strictCode);
 
@@ -1967,7 +2023,29 @@ export class PropertiesImplementation {
       });
 
       // 9. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, object, propKey, desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+    }
+
+    let MemberDefinition = MethodDefinition;
+    if (MemberDefinition.type === "ClassProperty") {
+      let propKey = EvalPropertyName(MemberDefinition, env, realm, strictCode);
+
+      let propValue;
+      if (MemberDefinition.value) {
+        let exprValueRef = env.evaluate(MemberDefinition.value, strictCode);
+        propValue = Environment.GetValue(realm, exprValueRef);
+      }
+      else if (MemberDefinition.extra) {
+        propValue = MemberDefinition.extra.rawValue
+      }
+
+      let desc = new PropertyDescriptor({
+        value: propValue,
+        enumerable: true,
+        configurable: true,
+      });
+
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
     }
   }
 

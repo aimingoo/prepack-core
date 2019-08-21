@@ -491,7 +491,7 @@ export type PropertiesType = {
   // ECMA 14.3.9
   PropertyDefinitionEvaluation(
     realm: Realm,
-    MethodDefinition: BabelNodeObjectMethod | BabelNodeClassMethod,
+    MethodDefinition: BabelNodeObjectMember | BabelNodeClassMethod | BabelNodeClassProperty,
     object: ObjectValue,
     env: LexicalEnvironment,
     strictCode: boolean,
@@ -621,7 +621,7 @@ export type FunctionType = {
 export type EnvironmentType = {
   // ECMA262 6.2.3
   // IsSuperReference(V). Returns true if this reference has a thisValue component.
-  IsSuperReference(realm: Realm, V: Reference): boolean,
+  IsSuperOrPrivateReference(realm: Realm, V: Reference): boolean,
 
   // ECMA262 6.2.3
   // HasPrimitiveBase(V). Returns true if Type(base) is Boolean, String, Symbol, or Number.

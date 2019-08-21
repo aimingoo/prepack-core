@@ -61,7 +61,7 @@ function evaluateDeleteOperation(expr: Value | Reference, realm: Realm) {
   // 5. If IsPropertyReference(ref) is true, then
   if (Environment.IsPropertyReference(realm, ref)) {
     // a. If IsSuperReference(ref) is true, throw a ReferenceError exception.
-    if (Environment.IsSuperReference(realm, ref)) {
+    if (Environment.IsSuperOrPrivateReference(realm, ref)) {
       throw realm.createErrorThrowCompletion(realm.intrinsics.ReferenceError);
     }
 

@@ -80,7 +80,7 @@ initializeGlobalProperties(realm);
 var code, [,,...[filename, ...args]] = process.argv;
 
 if (filename && (code = readFileSync(filename, "utf8"))) {
-  eval(code);
+  execute(code);
 }
 else {
   repl.start(Object.assign({eval: execute}, {

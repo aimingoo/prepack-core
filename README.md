@@ -1,68 +1,51 @@
-# Prepack-core
+# Prepack-core: proposal-protected-property
 
-Prepack-core isn't prepack:
+The prepack-core  for proposal-private-property.
 
- - no react and jsx
- - no bundler
- - no optimizer
- - no transformer
-
-The core is interpreter base ECMAScript 2016.
-
-> **Prepack**: See the official [prepack.io](https://prepack.io) website for an introduction and an [interactive REPL playground](https://prepack.io/repl.html).
+ - Support protected-property for class.
+ - Testcases.
 
 
 
-## Use Prepack-core
-
-Install the CLI via npm,
+## Usage
 
 ```bash
-# install dependencies
+# Pick this branch
+> git clone -b proposal-protected-property https://github.com/aimingoo/prepack-core
+
+# Init submodules
+> git submodule init
+> git submodule update
+#(OR, recursived clone)
+> git clone -b proposal-protected-property --recursive https://github.com/aimingoo/prepack-core
+
+# Install packages
 > npm install
 
-# build interpreter
-> yarn build
-#(OR)
+# Install babel and yarn, build it
 > npm run build-repl
+# (OR, with yarn)
+> npm install -g yarn
+> yarn build
 
-# enter repl-cli
-> yarn repl
-#(OR)
+# Launch repl
 > npm run repl
-
-# run .js file
-> yarn repl ./test.js
-#(OR)
-> npm run repl ./test.js
-#(OR)
-> node ./bin/prepack-repl.js ./test.js
+...
 ```
 
 
 
-## Update
-
-If you want coding with source:
+## First testcase
 
 ```bash
-> yarn watch
-```
-validate changes:
-
-```bash
-> yarn validate
-```
-
-Or bundle a standalone repl-cli:
-
-```bash
-> yarn build-bundle
+# run first testcase
+> npm run repl test/protected-property/simple-class.js
+100
+200
 ```
 
 
-## License
+## History
 
-The Prepack-core is fork of Prepack.
+* 2019.08.20	first release.
 
-Prepack is BSD-licensed. We also provide an additional patent grant.

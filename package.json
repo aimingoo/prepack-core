@@ -5,7 +5,7 @@
   "homepage": "https://github.com/aimingoo/prepack-core",
   "repository": {
     "type": "git",
-    "url": "git://github.com/aimingoo/prepack-core.git"
+    "url": "git://github.com/aimingoo/prepack-core.git#proposal-protected-property"
   },
   "bugs": {
     "url": "https://github.com/facebook/prepack/issues"
@@ -19,11 +19,11 @@
   "bin": {
     "prepack-repl": "bin/prepack-repl.js"
   },
-  "main": "lib/repl-cli.js",
+  "main": "lib/index.js",
   "scripts": {
     "build": "yarn build-repl",
     "build-scripts": "babel scripts --out-dir lib --source-maps",
-    "build-bundle": "webpack-cli --silent",
+    "build-bundle": "webpack-cli --silent --output-library-target commonjs2",
     "build-repl": "babel src --out-dir lib --source-maps",
     "watch": "babel src scripts --out-dir lib --watch --source-maps --verbose",
     "lint": "eslint src scripts",
@@ -42,13 +42,13 @@
     "prettier-ci": "node ./scripts/prettier.js"
   },
   "dependencies": {
-    "@babel/core": "^7.0.0",
+    "@babel/core": "^7.5.5",
     "@babel/generator": "^7.0.0",
     "@babel/node": "^7.0.0",
-    "@babel/parser": "^7.0.0",
+    "@babel/parser": "file:modules/babel-dev/packages/babel-parser",
     "@babel/preset-flow": "^7.0.0",
-    "@babel/template": "^7.0.0",
-    "@babel/traverse": "^7.0.0",
+    "@babel/template": "^7.4.4",
+    "@babel/traverse": "^7.5.5",
     "@babel/types": "^7.0.0",
     "fbjs": "^0.8.16",
     "node-zip": "^1.1.1",
@@ -83,6 +83,7 @@
     "eslint-plugin-prettier": "^2.1.2",
     "flow-typed": "^2.3.0",
     "graceful-fs": "^4.1.11",
+    "husky": "^3.0.4",
     "invariant": "^2.2.0",
     "istanbul": "^0.4.5",
     "js-beautify": "^1.7.5",
