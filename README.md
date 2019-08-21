@@ -49,5 +49,6 @@ The prepack-core  for proposal-private-property.
 
 ## History
 
+* 2019.08.21 constructor method support .
 * 2019.08.19	first release.
 
