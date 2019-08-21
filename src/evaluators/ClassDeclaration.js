@@ -180,7 +180,7 @@ export function ClassDefinitionEvaluation(
         // i. Let constructor be the result of parsing the source text
         //     constructor(... args){ super (...args);}
         // using the syntactic grammar with the goal symbol MethodDefinition.
-        constructorFile = parse(realm, "class NeedClassForParsing { constructor(... args){ super (...args);} }", "");
+        constructorFile = parse(realm, "class NeedClassForParsing extends Object { constructor(... args){ super (...args);} }", "");
       } else {
         // b. Else,
         // i. Let constructor be the result of parsing the source text

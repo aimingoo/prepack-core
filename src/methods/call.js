@@ -305,11 +305,10 @@ export function OrdinaryCallBindPrivate(
   realm: Realm,
   F: ECMAScriptFunctionValue,
   calleeContext: ExecutionContext,
-  thisArgument: Value
+  thisArgument: NullValue | ObjectValue
 ): NullValue | ObjectValue | AbstractObjectValue | UndefinedValue {
   if ((F.$HomeObject !== undefined) &&
-      (thisArgument instanceof ObjectValue) &&
-      (thisArgument.$Private !== undefined)) {
+      (thisArgument !== undefined)) {
     let localEnv = calleeContext.lexicalEnvironment;
     let P = F.$HomeObject.$Private;
     let E = localEnv.parent;

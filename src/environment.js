@@ -1429,8 +1429,9 @@ export function mightBecomeAnObject(base: Value): boolean {
 }
 
 export function isPrivateEnvironment(env: EnvironmentRecord): boolean {
-  return (env instanceof ObjectEnvironmentRecord) &&
-    (env.privateBase instanceof ObjectValue);
+  return (env instanceof ObjectEnvironmentRecord) && // is object environmentRecord
+    ((env.privateBase instanceof ObjectValue) ||  // call method
+     (env.privateBase instanceof NullValue)); // new Class
 }
 
 export class Reference {

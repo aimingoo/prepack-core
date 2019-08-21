@@ -5,7 +5,7 @@
   "homepage": "https://github.com/aimingoo/prepack-core",
   "repository": {
     "type": "git",
-    "url": "git://github.com/aimingoo/prepack-core.git"
+    "url": "git://github.com/aimingoo/prepack-core.git#proposal-private-property"
   },
   "bugs": {
     "url": "https://github.com/facebook/prepack/issues"
@@ -83,6 +83,7 @@
     "eslint-plugin-prettier": "^2.1.2",
     "flow-typed": "^2.3.0",
     "graceful-fs": "^4.1.11",
+    "husky": "^3.0.4",
     "invariant": "^2.2.0",
     "istanbul": "^0.4.5",
     "js-beautify": "^1.7.5",

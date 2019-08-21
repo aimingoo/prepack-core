@@ -697,6 +697,28 @@ export class EnvironmentImplementation {
     invariant(false);
   }
 
+  GetPrivateEnvironment(realm: Realm): EnvironmentRecord {
+    // 1. Let lex be the running execution context's LexicalEnvironment.
+    let lex = realm.getRunningContext().lexicalEnvironment;
+
+    // 2. Repeat
+    while (true) {
+      // a. Let envRec be lex's EnvironmentRecord.
+      let envRec = lex.environmentRecord;
+
+      if (isPrivateEnvironment(envRec)) return envRec;
+
+      // b. Let outer be the value of lex's outer environment reference.
+      let outer = lex.parent;
+      invariant(outer);
+
+      // c. Let lex be outer.
+      lex = outer;
+    }
+
+    invariant(false);
+  }
+
   // ECMA262 8.3.4
   ResolveThisBinding(realm: Realm): NullValue | ObjectValue | AbstractObjectValue | UndefinedValue {
     // 1. Let envRec be GetThisEnvironment( ).

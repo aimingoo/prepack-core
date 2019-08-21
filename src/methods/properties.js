@@ -1982,8 +1982,8 @@ export class PropertiesImplementation {
 
       // 10. Return ? DefinePropertyOrThrow(object, propKey, desc).
       return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
-    } else if (MethodDefinition.kind === "set") { // update by aimingoo
-      invariant(MethodDefinition.kind === "set");
+    } else if (MethodDefinition.kind === "set") {
+      // invariant(MethodDefinition.kind === "set");
       // 1. Let propKey be the result of evaluating PropertyName.
       let propKey = EvalPropertyName(MethodDefinition, env, realm, strictCode);
 

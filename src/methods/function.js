@@ -122,7 +122,8 @@ function InternalCall(
       // 8. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
       realm.popContext(calleeContext);
       // Remove private environment
-      if (!(privateEnv instanceof UndefinedValue)) {
+      if ((privateEnv !== undefined) &&
+         !(privateEnv instanceof UndefinedValue)) {
         invariant(calleeEnv.parent === privateEnv); // recheck
         calleeEnv.parent = privateEnv.parent; // reset
         realm.onDestroyScope(privateEnv); // removed
@@ -228,6 +229,9 @@ function InternalConstruct(
     if (thisArgument === undefined && kind === "base") {
       // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%ObjectPrototype%").
       thisArgument = Create.OrdinaryCreateFromConstructor(realm, newTarget, "ObjectPrototype");
+      // b. set [[Private]] internal solt to a object, create from target.prototype.[[Private]] as prototype;
+      let targetProto = newTarget && newTarget.$Get("prototype");
+      thisArgument.$Private = Create.ObjectCreate(realm, targetProto && targetProto.$Private || realm.intrinsics.null);
     }
 
     // Tracing: Give all registered tracers a chance to detour, wrapping around each other if needed.
@@ -248,16 +252,18 @@ function InternalConstruct(
     // 7. Assert: calleeContext is now the running execution context.
     invariant(realm.getRunningContext() === calleeContext, "expected calleeContext to be running context");
 
-    let result, envRec;
+    let result, envRec, privateEnv;
     try {
       for (let t1 of realm.tracers) t1.beforeCall(F, thisArgument, argumentsList, newTarget);
-
-      thisArgument.$Private = Create.ObjectCreate(realm, F.$Get("prototype").$Private);
 
       // 8. If kind is "base", perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
       if (kind === "base") {
         invariant(thisArgument, "this wasn't initialized for some reason");
         OrdinaryCallBindThis(realm, F, calleeContext, thisArgument);
+      }
+      else {
+        // Binding private environment, send null as thisArgument
+        privateEnv = OrdinaryCallBindPrivate(realm, F, calleeContext, realm.intrinsics.null);
       }
 
       // 9. Let constructorEnv be the LexicalEnvironment of calleeContext.
@@ -271,6 +277,13 @@ function InternalConstruct(
     } finally {
       // 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
       realm.popContext(calleeContext);
+      // Remove private environment
+      if ((privateEnv !== undefined) &&
+         !(privateEnv instanceof UndefinedValue)) {
+        invariant(calleeEnv.parent === privateEnv); // recheck
+        calleeEnv.parent = privateEnv.parent; // reset
+        realm.onDestroyScope(privateEnv); // removed
+      }
       realm.onDestroyScope(calleeContext.lexicalEnvironment);
       if (calleeContext.lexicalEnvironment !== calleeEnv) realm.onDestroyScope(calleeEnv);
       invariant(realm.getRunningContext() === callerContext);

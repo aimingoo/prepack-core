@@ -72,7 +72,7 @@ export default function(
 ): ObjectValue {
   // 1. Let obj be ObjectCreate(%ObjectPrototype%).
   let obj = Create.ObjectCreate(realm, realm.intrinsics.ObjectPrototype);
-  obj.$Private = Create.ObjectCreate(realm, realm.intrinsics.null);  // by aimingoo
+  obj.$Private = Create.ObjectCreate(realm, realm.intrinsics.null);
 
   // 2. Let status be the result of performing PropertyDefinitionEvaluation of PropertyDefinitionList with arguments obj and true.
   for (let prop of ast.properties) {
