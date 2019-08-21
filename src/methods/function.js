@@ -261,10 +261,9 @@ function InternalConstruct(
         invariant(thisArgument, "this wasn't initialized for some reason");
         OrdinaryCallBindThis(realm, F, calleeContext, thisArgument);
       }
-      else {
-        // Binding private environment, send null as thisArgument
-        privateEnv = OrdinaryCallBindPrivate(realm, F, calleeContext, realm.intrinsics.null);
-      }
+
+      // Binding private environment, pass NullValue when undefined
+      privateEnv = OrdinaryCallBindPrivate(realm, F, calleeContext, thisArgument || realm.intrinsics.null);
 
       // 9. Let constructorEnv be the LexicalEnvironment of calleeContext.
       let constructorEnv = calleeContext.lexicalEnvironment;
