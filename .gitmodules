@@ -6,4 +6,3 @@
 [submodule "modules/babel-dev"]
 	path = modules/babel-dev
 	url = https://github.com/aimingoo/babel-dev
-        ignore = all
