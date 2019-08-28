@@ -11,8 +11,8 @@
 
 import type { Realm } from "../realm.js";
 import type { LexicalEnvironment } from "../environment.js";
-import { Reference } from "../environment.js";
-import { StringValue } from "../values/index.js";
+import { Reference, ObjectEnvironmentRecord } from "../environment.js";
+import { StringValue, BooleanValue, FunctionValue } from "../values/index.js";
 import { RequireObjectCoercible } from "../methods/index.js";
 import { Environment, To } from "../singletons.js";
 import type { BabelNodeMemberExpression } from "@babel/types";
@@ -42,6 +42,24 @@ export default function(
 
     // 4. Let propertyNameValue be ? GetValue(propertyNameReference).
     propertyNameValue = Environment.GetValue(realm, propertyNameReference);
+    // for `baseValue[internal.x]`, and `internal.x` as propertyNameReference
+    //   - the baseValue must be instance of AClass
+    //   - `internal` define in AClass or AClass's prototype chain.
+    if (realm.intrinsics.true.equals(propertyNameValue) &&
+      Environment.IsPropertyReference(realm, propertyNameReference) && // fast check
+      Environment.GetBase(realm, propertyNameReference).$isInternal) { // check sign
+
+      // Enter private scope
+      let home = Environment.GetThisEnvironment(realm).$HomeObject;  // home of current Method
+      // invariant(home.$Private === Environment.GetPrivateEnvironment(realm).WithBaseObject());
+      let base = (home instanceof FunctionValue) ? home.$Get("prototype", home) : home; // WARRING
+      let bv = RequireObjectCoercible(realm, base.$Private, ast.object.loc);
+      let name = Environment.GetReferencedName(realm, propertyNameReference);
+      let privateEnv = new ObjectEnvironmentRecord(realm, bv); // Can be cache
+      privateEnv.privateBase = baseValue;
+      privateEnv.withEnvironment = true;
+      return new Reference(privateEnv, name, strictCode); // base is ObjectEnv and outer is null
+    }
   } else {
     // 3. Let propertyNameString be StringValue of IdentifierName.
     propertyNameValue = new StringValue(realm, ast.property.name);

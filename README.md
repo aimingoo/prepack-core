@@ -37,18 +37,27 @@ The prepack-core  for proposal-private-property.
 
 ## First testcase
 
+Run our first testcase.
+
 ```bash
-# run first testcase
 > npm run repl test/private-property/simple-class.js
 100
 200
+
 > npm run repl test/private-property/simple-object.js
 300
+
+> npm run repl test/private-property/simple-internal.js
+true
+100
 ```
 
 
 ## History
 
-* 2019.08.21 constructor method support .
+* 2019.08.29	internal access support.
+
+* 2019.08.21	constructor method support.
+
 * 2019.08.19	first release.
 

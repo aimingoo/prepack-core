@@ -173,6 +173,7 @@ export function initialize(i: Intrinsics, realm: Realm): Intrinsics {
   i.negativeZero = new NumberValue(realm, -0);
   i.zero = new NumberValue(realm, +0);
   i.emptyString = new StringValue(realm, "");
+  i.internal = new SymbolValue(realm);
 
   //
   i.ObjectPrototype = new ObjectValue(realm, i.ObjectPrototype, "Object.prototype");

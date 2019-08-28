@@ -322,7 +322,11 @@ export class EnvironmentImplementation {
         let thisObject = GetThisValue(realm, V);
         let baseObject = base.WithBaseObject();
         let privateSymbol = baseObject.$Get(referencedName, baseObject);
-        return thisObject.$Private.$Get(privateSymbol, thisObject);
+        let value = thisObject.$Private.$Get(privateSymbol, thisObject);
+        if ((value instanceof ObjectValue) && value.$isInternal) {  // as sign only
+          return baseObject.$Get(realm.intrinsics.internal, baseObject);
+        }
+        return value;
       }
 
       return base.GetBindingValue(referencedName, this.IsStrictReference(realm, V));

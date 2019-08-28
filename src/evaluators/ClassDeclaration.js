@@ -13,7 +13,7 @@ import type { Realm } from "../realm.js";
 import type { LexicalEnvironment } from "../environment.js";
 import { AbstractValue, Value, type ECMAScriptSourceFunctionValue } from "../values/index.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
-import { NullValue, EmptyValue, ObjectValue, ECMAScriptFunctionValue } from "../values/index.js";
+import { NullValue, EmptyValue, ObjectValue, SymbolValue, ECMAScriptFunctionValue } from "../values/index.js";
 import type {
   BabelNodeClassDeclaration,
   BabelNodeClassExpression,
@@ -33,6 +33,8 @@ import {
 } from "../methods/index.js";
 import { Create, Environment, Functions, Properties } from "../singletons.js";
 import invariant from "../invariant.js";
+import { SetIntegrityLevel } from "../methods/integrity.js";
+import { PropertyDescriptor } from "../descriptors.js";
 
 function EvaluateClassHeritage(
   realm: Realm,
@@ -227,6 +229,20 @@ export function ClassDefinitionEvaluation(
       MakeClassConstructor(realm, F);
 
       F.$Private = Create.ObjectCreate(realm, realm.intrinsics.null);
+      // save internals list
+      F.$Internal = Create.ObjectCreate(realm, realm.intrinsics.null);
+      F.$Internal.$isInternal = true; // or implement internal exotic objects
+      proto.$Internal = F.$Internal;
+
+      // add private name
+      let desc = new PropertyDescriptor({value: realm.intrinsics.internal});
+      Properties.DefinePropertyOrThrow(realm, F.$Private, "internal", desc);
+      Properties.DefinePropertyOrThrow(realm, proto.$Private, "internal", desc);
+
+      // set private value
+      desc = new PropertyDescriptor({value: F.$Internal});
+      Properties.DefinePropertyOrThrow(realm, F.$Private, realm.intrinsics.internal, desc);
+      Properties.DefinePropertyOrThrow(realm, proto.$Private, realm.intrinsics.internal, desc);
 
       // 18. Perform CreateMethodProperty(proto, "constructor", F).
       Create.CreateMethodProperty(realm, proto, "constructor", F);
@@ -237,7 +253,7 @@ export function ClassDefinitionEvaluation(
         members = [];
       } else {
         // 20. Else, let methods be NonConstructorMethodDefinitions of ClassBody.
-        members = NonConstructorMethodDefinitions(realm, ClassBody)
+        members = NonConstructorMethodDefinitions(realm, ClassBody);
       }
 
       // 21.a. If IsStatic of m is false, then
@@ -253,6 +269,9 @@ export function ClassDefinitionEvaluation(
         // i. Set the running execution context's LexicalEnvironment to lex.
         // ii. Return Completion(status).
       }
+
+      // freeze internal
+      SetIntegrityLevel(realm, F.$Internal, "frozen");
     } finally {
       // 22. Set the running execution context’s LexicalEnvironment to lex.
       realm.getRunningContext().lexicalEnvironment = lex;
