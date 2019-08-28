@@ -1853,19 +1853,28 @@ export class PropertiesImplementation {
     let accessibility = MethodDefinition.accessibility || "public";
 
     let isPrivateMember = (accessibility === "protected") || (accessibility === "private");
+    let isInternal = MethodDefinition.withInternal || false;
 
     let targetObject = (accessibility === "private") ? object.$Private
       : (accessibility === "protected") ? object.$Protected
       : (accessibility === "public") ? object
       : invariant(accessibility===undefined, "Unknown accessibility definition");
 
-    let TryWarpPrivateSymbol = (propKey) => {
+    let TryWarpPrivateSymbolAndPutInternal = (propKey) => {
       if (!isPrivateMember) return propKey;
       // ignore duplicate key for get/setter methods
       let ownDesc = targetObject.$GetOwnProperty(propKey);
       if (!ownDesc) {
+        // make PrivateSymbol
         ownDesc = new PropertyDescriptor({value: new SymbolValue(realm)});
         this.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
+        // mark internal name, by aimingoo
+        if (isInternal || ((accessibility === "protected") &&
+            realm.intrinsics.true.equals(Get(realm, object.$Internal, propKey)))) {
+          let dest = (accessibility === "protected") ? object.$ProtectedInternal : object.$Internal;
+          let desc = new PropertyDescriptor({value: new BooleanValue(realm, isInternal)});
+          this.DefinePropertyOrThrow(realm, dest, propKey, desc);
+        }
       }
       return ownDesc.value;
     }
@@ -1892,7 +1901,7 @@ export class PropertiesImplementation {
       });
 
       // 5. Return DefinePropertyOrThrow(object, methodDef.[[key]], desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(methodDef.$Key), desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(methodDef.$Key), desc);
     } else if (MethodDefinition.kind === "generator") {
       // MethodDefinition : GeneratorMethod
       // See 14.4.
@@ -1939,7 +1948,7 @@ export class PropertiesImplementation {
       });
 
       // 11. Return DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
     } else if (MethodDefinition.kind === "get") {
       // 1. Let propKey be the result of evaluating PropertyName.
       let propKey = EvalPropertyName(MethodDefinition, env, realm, strictCode);
@@ -1982,7 +1991,7 @@ export class PropertiesImplementation {
       });
 
       // 10. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
     } else if (MethodDefinition.kind === "set") {
       // invariant(MethodDefinition.kind === "set");
       // 1. Let propKey be the result of evaluating PropertyName.
@@ -2023,7 +2032,7 @@ export class PropertiesImplementation {
       });
 
       // 9. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
     }
 
     let MemberDefinition = MethodDefinition;
@@ -2045,7 +2054,7 @@ export class PropertiesImplementation {
         configurable: true,
       });
 
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbol(propKey), desc);
+      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
     }
   }
 

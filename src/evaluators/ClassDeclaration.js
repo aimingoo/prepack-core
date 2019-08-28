@@ -13,7 +13,7 @@ import type { Realm } from "../realm.js";
 import type { LexicalEnvironment } from "../environment.js";
 import { AbstractValue, Value, type ECMAScriptSourceFunctionValue } from "../values/index.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
-import { NullValue, EmptyValue, ObjectValue, ECMAScriptFunctionValue } from "../values/index.js";
+import { NullValue, EmptyValue, ObjectValue, SymbolValue, ECMAScriptFunctionValue } from "../values/index.js";
 import type {
   BabelNodeClassDeclaration,
   BabelNodeClassExpression,
@@ -33,6 +33,8 @@ import {
 } from "../methods/index.js";
 import { Create, Environment, Functions, Properties } from "../singletons.js";
 import invariant from "../invariant.js";
+import { SetIntegrityLevel } from "../methods/integrity.js";
+import { PropertyDescriptor } from "../descriptors.js";
 
 function EvaluateClassHeritage(
   realm: Realm,
@@ -230,16 +232,35 @@ export function ClassDefinitionEvaluation(
       F.$Protected = Create.ObjectCreate(realm, constructorParent && constructorParent.$Protected || realm.intrinsics.null);
       F.$Private = Create.ObjectCreate(realm, F.$Protected);
 
+      // create internal inherit tree, by aimingoo
+      let isRootInternal = !(constructorParent && constructorParent.$ProtectedInternal);
+      let internalProto =  isRootInternal ? realm.intrinsics.null : constructorParent.$ProtectedInternal;
+      F.$ProtectedInternal = Create.ObjectCreate(realm, internalProto);
+      F.$Internal = Create.ObjectCreate(realm, F.$ProtectedInternal);
+      F.$Internal.$isInternal = true; // or implement internal exotic objects
+      proto.$Internal = F.$Internal;
+      proto.$ProtectedInternal = F.$ProtectedInternal; // temp!!
+      if (isRootInternal) {
+        let desc = new PropertyDescriptor({value: realm.intrinsics.internal});
+        Properties.DefinePropertyOrThrow(realm, F.$Protected, "internal", desc);
+        Properties.DefinePropertyOrThrow(realm, proto.$Protected, "internal", desc);
+      }
+
+      // override internals list by current class, by aimingoo
+      let desc: Descriptor = new PropertyDescriptor({value: F.$Internal});
+      Properties.DefinePropertyOrThrow(realm, F.$Private, realm.intrinsics.internal, desc);
+      Properties.DefinePropertyOrThrow(realm, proto.$Private, realm.intrinsics.internal, desc);
+
       // 18. Perform CreateMethodProperty(proto, "constructor", F).
       Create.CreateMethodProperty(realm, proto, "constructor", F);
 
-      let members;
+      let members, internals;
       // 19. If ClassBody opt is not present, let methods be a new empty List.
       if (ClassBody.length === 0) {
         members = [];
       } else {
         // 20. Else, let methods be NonConstructorMethodDefinitions of ClassBody.
-        members = NonConstructorMethodDefinitions(realm, ClassBody)
+        members = NonConstructorMethodDefinitions(realm, ClassBody);
       }
 
       // 21.a. If IsStatic of m is false, then
@@ -255,6 +276,10 @@ export function ClassDefinitionEvaluation(
         // i. Set the running execution context's LexicalEnvironment to lex.
         // ii. Return Completion(status).
       }
+
+      // freeze internal, by aimingoo
+      SetIntegrityLevel(realm, F.$Internal, "frozen");
+      delete proto.$ProtectedInternal; // remove it, temp
     } finally {
       // 22. Set the running execution context’s LexicalEnvironment to lex.
       realm.getRunningContext().lexicalEnvironment = lex;
