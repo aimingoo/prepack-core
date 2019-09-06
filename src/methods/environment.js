@@ -69,16 +69,6 @@ import type {
 } from "@babel/types";
 import * as t from "@babel/types";
 
-function IsPrivatePrototypeOf2(base, instance) {  // hard check protected-chain
-  let chain = instance.$Private.$GetPrototypeOf(); // is X.prototype[[Protected]]
-  let parent = base.$GetPrototypeOf(); // is HomeObject.[[Protected]]
-  while (chain instanceof ObjectValue) {
-    if (chain === parent) return true;
-    chain = chain.$GetPrototypeOf();
-  }
-  return false;
-}
-
 export class EnvironmentImplementation {
   // 2.6 RestBindingInitialization (please suggest an appropriate section name)
   RestBindingInitialization(
