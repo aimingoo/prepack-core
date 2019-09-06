@@ -29,7 +29,7 @@ import {
 import { EvalPropertyName } from "../evaluators/ObjectExpression.js";
 import { EnvironmentRecord, ObjectEnvironmentRecord, Reference, isPrivateEnvironment } from "../environment.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
-import { HasProperty, HasOwnProperty } from "./has.js";
+import { HasOwnProperty } from "./has.js";
 import invariant from "../invariant.js";
 import {
   Call,
@@ -1310,7 +1310,7 @@ export class PropertiesImplementation {
         while (!ownDesc) {
           parent = parent.$GetPrototypeOf();
           if (parent instanceof NullValue) break;
-          ownDesc = parent.$GetOwnProperty(privateSymbol)
+          ownDesc = parent.$GetOwnProperty(privateSymbol);
         }
 
         invariant(ownDesc !== undefined);
@@ -1850,33 +1850,129 @@ export class PropertiesImplementation {
     strictCode: boolean,
     enumerable: boolean
   ): boolean {
+    let Properties = this;
     let accessibility = MethodDefinition.accessibility || "public";
-
-    let isPrivateMember = (accessibility === "protected") || (accessibility === "private");
-    let isInternal = MethodDefinition.withInternal || false;
-
     let targetObject = (accessibility === "private") ? object.$Private
       : (accessibility === "protected") ? object.$Protected
       : (accessibility === "public") ? object
       : invariant(accessibility===undefined, "Unknown accessibility definition");
 
-    let TryWarpPrivateSymbolAndPutInternal = (propKey) => {
-      if (!isPrivateMember) return propKey;
-      // ignore duplicate key for get/setter methods
-      let ownDesc = targetObject.$GetOwnProperty(propKey);
-      if (!ownDesc) {
-        // make PrivateSymbol
-        ownDesc = new PropertyDescriptor({value: new SymbolValue(realm)});
-        this.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
-        // mark internal name, by aimingoo
+    // support private member privileges, add by aimingoo
+    function DefinePrivilegePropertyOrThrow(
+      realm: Realm,
+      O: ObjectValue | AbstractObjectValue,
+      P: PropertyKeyValue,
+      desc: Descriptor
+    ): boolean {
+      // check unscopabled on protected-chain
+      let isUnscopabledOnProtectedChain = propKey => {
+        let proto = object.$Protected.$GetPrototypeOf();
+        let unscopables = (proto instanceof ObjectValue) && Get(realm, proto, realm.intrinsics.SymbolUnscopables);
+        return (unscopables instanceof ObjectValue) &&
+          realm.intrinsics.true.equals(Get(realm, unscopables, propKey));
+      }
+      let requireOwnUnscopables = target => {
+        let ownDesc = target.$GetOwnProperty(realm.intrinsics.SymbolUnscopables);
+        if (!ownDesc) {
+          let proto = target.$GetPrototypeOf();
+          let unscopables = (proto instanceof ObjectValue) && Get(realm, proto, realm.intrinsics.SymbolUnscopables);
+          ownDesc = new PropertyDescriptor({value: Create.ObjectCreate(realm,
+            unscopables instanceof ObjectValue ? unscopables : realm.intrinsics.null)});
+          Properties.DefinePropertyOrThrow(realm, target, realm.intrinsics.SymbolUnscopables, ownDesc);
+        }
+        return ownDesc.value;
+      }
+      let setVisibleInScope = (target, propKey) => {
+        let unscopables = requireOwnUnscopables(target);
+        return unscopables.$Set(propKey, realm.intrinsics.false, unscopables);
+      }
+      let setInvisibleInScope = (target, propKey) => {
+        let unscopables = requireOwnUnscopables(target);
+        return unscopables.$Set(propKey, realm.intrinsics.true, unscopables);
+      }
+
+      // try and keep existing name, or warp symbol for new name
+      return TryOverrideVisibilityAndResaveValue(P) || 
+        Properties.DefinePropertyOrThrow(realm, O, TryWarpPrivateSymbolAndPutInternal(P), desc);
+
+      // process 'as' clause and 'internal' prefix
+      function TryOverrideVisibilityAndResaveValue(propKey) {
+        if (!MethodDefinition.asFrom) return false; // tried, ignore
+
+        let privateSymbol, protectedMembers = object.$Protected, mildlyMode = true;
+        let hasOwnProtectedMember = propKey => HasOwnProperty(realm, protectedMembers, propKey);
+        let hasParentProtectedMember = propKey => !hasOwnProtectedMember(propKey) && protectedMembers.$HasProperty(propKey);
+        let AllowPrivateKey = propKey => hasOwnProtectedMember(propKey) || !isUnscopabledOnProtectedChain(propKey);
+
+        // experimental rules
+        if (mildlyMode) hasParentProtectedMember = () => true;
+
+        if (MethodDefinition.asFrom !== "itself") { // [protected|private] y as x = 100;
+          invariant(MethodDefinition.asFrom.type === "Identifier", "private member name must be identifier");
+
+          let fromKey = new StringValue(realm, MethodDefinition.asFrom.name);
+          invariant(AllowPrivateKey(fromKey), "can not re-enter private scope");
+          invariant(hasParentProtectedMember(fromKey), "alias for inherited protected property only");
+          privateSymbol = Get(realm, protectedMembers, fromKey)
+          setInvisibleInScope(targetObject, fromKey);
+        }
+        else { // [protected|private] as x = 100;
+          invariant(AllowPrivateKey(propKey), "can not re-enter private scope");
+          invariant(hasParentProtectedMember(propKey), "override for inherited protected property only");
+
+          // downgrade, copy name to privae scope
+          if (accessibility === 'private') {
+            privateSymbol = Get(realm, protectedMembers, propKey)
+            setInvisibleInScope(protectedMembers, propKey);
+          }
+        }
+
+        // create a member using new privateName wkih old privateSymbol
+        //   - if set alias for existing, will rewrite privateSymbol
+        if (privateSymbol instanceof SymbolValue) {
+          let ownDesc = new PropertyDescriptor({value: privateSymbol, configurable: true});
+          Properties.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
+        }
+        // set visibility for new key, and/or unset when targetObject be $Protected
+        setVisibleInScope(targetObject, propKey);
+
+        // continue `PropertyDefinitionEvaluation` procedure when def.value is not null
+        return (MethodDefinition.withInternal ||
+          (MethodDefinition.value === null));
+      }
+
+      function TryWarpPrivateSymbolAndPutInternal(propKey) {
+        let isPrivateMember = (accessibility === "protected") || (accessibility === "private");
+        if (!isPrivateMember) return propKey;
+
+        let ownDesc = targetObject.$GetOwnProperty(propKey);
+        if (!ownDesc) { // ignore duplicate key for get/setter and normal definition
+          if (isUnscopabledOnProtectedChain(propKey)) { // exist, and invisiabled!
+            // invariant(accessibility !== "protected", "can not override invisiabled protected property"); 
+          }
+          else {
+            // try inherited protected members
+            let privateSymbol = Get(realm, object.$Protected, propKey);
+            if (privateSymbol instanceof SymbolValue) return privateSymbol;
+          }
+          // make PrivateSymbol
+          ownDesc = new PropertyDescriptor({value: new SymbolValue(realm)});
+          Properties.DefinePropertyOrThrow(realm, targetObject, propKey, ownDesc);
+          // set visiable for unscopabled name in scope of targetObject
+          setVisibleInScope(targetObject, propKey);
+        }
+
+        // mark internal name
+        let isInternal = MethodDefinition.withInternal || false;
         if (isInternal || ((accessibility === "protected") &&
             realm.intrinsics.true.equals(Get(realm, object.$Internal, propKey)))) {
           let dest = (accessibility === "protected") ? object.$ProtectedInternal : object.$Internal;
-          let desc = new PropertyDescriptor({value: new BooleanValue(realm, isInternal)});
-          this.DefinePropertyOrThrow(realm, dest, propKey, desc);
+          let desc = new PropertyDescriptor({value: new BooleanValue(realm, isInternal), enumerable: isInternal});
+          Properties.DefinePropertyOrThrow(realm, dest, propKey, desc);
         }
+
+        return ownDesc.value;
       }
-      return ownDesc.value;
     }
 
     // MethodDefinition : PropertyName ( StrictFormalParameters ) { FunctionBody }
@@ -1901,7 +1997,7 @@ export class PropertiesImplementation {
       });
 
       // 5. Return DefinePropertyOrThrow(object, methodDef.[[key]], desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(methodDef.$Key), desc);
+      return DefinePrivilegePropertyOrThrow(realm, targetObject, methodDef.$Key, desc);
     } else if (MethodDefinition.kind === "generator") {
       // MethodDefinition : GeneratorMethod
       // See 14.4.
@@ -1948,7 +2044,7 @@ export class PropertiesImplementation {
       });
 
       // 11. Return DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
+      return DefinePrivilegePropertyOrThrow(realm, targetObject, propKey, desc);
     } else if (MethodDefinition.kind === "get") {
       // 1. Let propKey be the result of evaluating PropertyName.
       let propKey = EvalPropertyName(MethodDefinition, env, realm, strictCode);
@@ -1991,7 +2087,7 @@ export class PropertiesImplementation {
       });
 
       // 10. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
+      return DefinePrivilegePropertyOrThrow(realm, targetObject, propKey, desc);
     } else if (MethodDefinition.kind === "set") {
       // invariant(MethodDefinition.kind === "set");
       // 1. Let propKey be the result of evaluating PropertyName.
@@ -2032,7 +2128,7 @@ export class PropertiesImplementation {
       });
 
       // 9. Return ? DefinePropertyOrThrow(object, propKey, desc).
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
+      return DefinePrivilegePropertyOrThrow(realm, targetObject, propKey, desc);
     }
 
     let MemberDefinition = MethodDefinition;
@@ -2054,7 +2150,7 @@ export class PropertiesImplementation {
         configurable: true,
       });
 
-      return this.DefinePropertyOrThrow(realm, targetObject, TryWarpPrivateSymbolAndPutInternal(propKey), desc);
+      return DefinePrivilegePropertyOrThrow(realm, targetObject, propKey, desc);
     }
   }
 

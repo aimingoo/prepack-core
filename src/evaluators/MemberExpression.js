@@ -12,7 +12,7 @@
 import type { Realm } from "../realm.js";
 import type { LexicalEnvironment } from "../environment.js";
 import { Reference, ObjectEnvironmentRecord } from "../environment.js";
-import { StringValue, BooleanValue, FunctionValue } from "../values/index.js";
+import { StringValue, BooleanValue, FunctionValue, ObjectValue } from "../values/index.js";
 import { RequireObjectCoercible } from "../methods/index.js";
 import { Environment, To } from "../singletons.js";
 import type { BabelNodeMemberExpression } from "@babel/types";
@@ -34,6 +34,7 @@ export default function(
 
   // 2. Let baseValue be ? GetValue(baseReference).
   let baseValue = Environment.GetValue(realm, baseReference);
+
   let propertyNameValue;
   if (ast.computed === true) {
     // 3. Let propertyNameReference be the result of evaluating Expression.
@@ -46,20 +47,23 @@ export default function(
     // for `baseValue[internal.x]`, and `internal.x` as propertyNameReference
     //   - the baseValue must be instance of AClass
     //   - `internal` define in AClass or AClass's prototype chain.
-    if (realm.intrinsics.true.equals(propertyNameValue) &&
-      Environment.IsPropertyReference(realm, propertyNameReference) && // fast check
-      Environment.GetBase(realm, propertyNameReference).$isInternal) { // check sign
+    if (realm.intrinsics.true.equals(propertyNameValue)) {
+      // Environment.IsPropertyReference(realm, propertyNameReference) && // fast check
+      // Environment.GetBase(realm, propertyNameReference).$isInternal) { // check sign
+      let base = Environment.GetBase(realm, propertyNameReference);
+      if ((base instanceof ObjectValue) && base.$isInternal) { // fast check and check sign
+        // Enter private scope
+        let home = Environment.GetThisEnvironment(realm).$HomeObject;  // home of current Method
+        // invariant(home.$Private === Environment.GetPrivateEnvironment(realm).WithBaseObject());
+        if (home instanceof FunctionValue) home = home.$Get("prototype", home); // WARRING
 
-      // Enter private scope
-      let home = Environment.GetThisEnvironment(realm).$HomeObject;  // home of current Method
-      // invariant(home.$Private === Environment.GetPrivateEnvironment(realm).WithBaseObject());
-      let base = (home instanceof FunctionValue) ? home.$Get("prototype", home) : home; // WARRING
-      let bv = RequireObjectCoercible(realm, base.$Private, ast.object.loc);
-      let name = Environment.GetReferencedName(realm, propertyNameReference);
-      let privateEnv = new ObjectEnvironmentRecord(realm, bv); // Can be cache
-      privateEnv.privateBase = baseValue;
-      privateEnv.withEnvironment = true;
-      return new Reference(privateEnv, name, strictCode); // base is ObjectEnv and outer is null
+        let bv = RequireObjectCoercible(realm, home.$Private, ast.object.loc);
+        let name = Environment.GetReferencedName(realm, propertyNameReference);
+        let privateEnv = new ObjectEnvironmentRecord(realm, bv); // Can be cache
+        privateEnv.privateBase = baseValue;
+        privateEnv.withEnvironment = true;
+        return new Reference(privateEnv, name, strictCode); // base is ObjectEnv and outer is null
+      }
     }
   } else {
     // 3. Let propertyNameString be StringValue of IdentifierName.

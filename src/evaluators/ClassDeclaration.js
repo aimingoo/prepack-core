@@ -241,7 +241,7 @@ export function ClassDefinitionEvaluation(
       proto.$Internal = F.$Internal;
       proto.$ProtectedInternal = F.$ProtectedInternal; // temp!!
       if (isRootInternal) {
-        let desc = new PropertyDescriptor({value: realm.intrinsics.internal});
+        let desc = new PropertyDescriptor({value: realm.intrinsics.internal, writable: realm.intrinsics.false});
         Properties.DefinePropertyOrThrow(realm, F.$Protected, "internal", desc);
         Properties.DefinePropertyOrThrow(realm, proto.$Protected, "internal", desc);
       }
@@ -254,7 +254,7 @@ export function ClassDefinitionEvaluation(
       // 18. Perform CreateMethodProperty(proto, "constructor", F).
       Create.CreateMethodProperty(realm, proto, "constructor", F);
 
-      let members, internals;
+      let members;
       // 19. If ClassBody opt is not present, let methods be a new empty List.
       if (ClassBody.length === 0) {
         members = [];
