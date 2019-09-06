@@ -29,7 +29,7 @@ import {
 import { EvalPropertyName } from "../evaluators/ObjectExpression.js";
 import { EnvironmentRecord, ObjectEnvironmentRecord, Reference, isPrivateEnvironment } from "../environment.js";
 import { CompilerDiagnostic, FatalError } from "../errors.js";
-import { HasProperty, HasOwnProperty } from "./has.js";
+import { HasOwnProperty } from "./has.js";
 import invariant from "../invariant.js";
 import {
   Call,
@@ -1296,33 +1296,38 @@ export class PropertiesImplementation {
       let referencedName = Environment.GetReferencedName(realm, V);
       invariant(typeof referencedName === "string");
 
+      // @see _dereference() in src/methods/environment.js
       if (isPrivateEnvironment(base)) {
         let thisObject = GetThisValue(realm, V);
         let baseObject = base.WithBaseObject();
         let privateSymbol = baseObject.$Get(referencedName, baseObject);
-        let objectPrivate = thisObject.$Private;
+        if (!(thisObject && thisObject.$Private)) return realm.intrinsics.undefined;
 
-        let ownDesc = objectPrivate.$GetOwnProperty(privateSymbol);
+        let objectPrivate = thisObject.$Private;
+        let parent = objectPrivate, ownDesc = parent.$GetOwnProperty(privateSymbol);
+
+        if (!ownDesc) { // no newly rewrited value
+          if (HasOwnProperty(realm, baseObject, referencedName) && // in private scope
+              IsPrivatePrototypeOf(baseObject, thisObject)) { // is subclass instance
+            parent = baseObject; // point to private scope of HomeObject
+            ownDesc = parent.$GetOwnProperty(privateSymbol); // for privated only
+          }
+          else { // resolving descriptor on thisObject's protected-chain
+            do {
+              parent = parent.$GetPrototypeOf();
+              if (parent instanceof NullValue) break;
+              ownDesc = parent.$GetOwnProperty(privateSymbol);
+            }
+            while (!ownDesc);
+          }
+        }
+
+        // Note: this is an exception that user code can try to collide with
+        invariant(ownDesc !== undefined, "Can not resolve descriptor of private property.");
+
         if (ownDesc && IsDataDescriptor(realm, ownDesc)) {
           return objectPrivate.$Set(privateSymbol, W, objectPrivate);
         }
-
-        // descriptor on thisObject's private-chain
-        let parent = objectPrivate;
-        while (!ownDesc) {
-          parent = parent.$GetPrototypeOf();
-          if (parent instanceof NullValue) break;
-          ownDesc = parent.$GetOwnProperty(privateSymbol)
-        }
-
-        // or, on baseObject's private scope
-        if (!ownDesc &&
-            IsPrivatePrototypeOf(baseObject, thisObject)) { // is subclass instance
-          parent = baseObject;
-          ownDesc = parent.$GetOwnProperty(privateSymbol); // for privated only
-        }
-
-        invariant(ownDesc !== undefined, "Can not resolve descriptor of private property.");
 
         // call accessor or make new data descriptor
         if (IsAccessorDescriptor(realm, ownDesc)) {

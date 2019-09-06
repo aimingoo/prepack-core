@@ -384,7 +384,7 @@ export function IsStatic(classElement: BabelNodeClassMethod): boolean {
   return classElement.static;
 }
 
-// for Private-property prosols only, check prototype-chain
+// for Private-property proposal only, check prototype-chain
 export function IsPrivatePrototypeOf(base: ObjectValue, instance: ObjectValue): boolean {
   let chain = instance.$GetPrototypeOf();
   // invariant(instance.$Private && (instance.$Private.$GetPrototypeOf() === chain.$Private), 'hard check');
