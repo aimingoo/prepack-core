@@ -50,6 +50,7 @@ import {
   IteratorValue,
   IteratorClose,
   IsAnonymousFunctionDefinition,
+  IsPrivatePrototypeOf,
   HasOwnProperty,
   RequireObjectCoercible,
 } from "./index.js";
@@ -318,11 +319,32 @@ export class EnvironmentImplementation {
       let referencedName = this.GetReferencedName(realm, V);
       invariant(typeof referencedName === "string");
 
+      // @see PutValue() in src/methods/properties.js
       if (isPrivateEnvironment(base)) {
         let thisObject = GetThisValue(realm, V);
         let baseObject = base.WithBaseObject();
         let privateSymbol = baseObject.$Get(referencedName, baseObject);
-        return thisObject.$Private.$Get(privateSymbol, thisObject);
+        if (!(thisObject && thisObject.$Private)) return realm.intrinsics.undefined;
+
+        let value, objectPrivate = thisObject.$Private;
+
+        if (!HasOwnProperty(realm, objectPrivate, privateSymbol) && // no rewrited
+            HasOwnProperty(realm, baseObject, referencedName)) { // in private scope
+          if (!IsPrivatePrototypeOf(baseObject, thisObject)) { // subclass check
+            invariant(!this.IsStrictReference(realm, V), 'must be subclass instance.');
+            return realm.intrinsics.undefined;
+          }
+          value = baseObject.$Get(privateSymbol, thisObject); // for privated only
+        }
+        else { // resolving descriptor on thisObject's protected-chain
+          value = objectPrivate.$Get(privateSymbol, thisObject);
+        }
+
+        if ((value instanceof ObjectValue) && value.$isInternal) {  // as sign only
+          return baseObject.$Get(realm.intrinsics.internal, baseObject);
+        }
+
+        return value;
       }
 
       return base.GetBindingValue(referencedName, this.IsStrictReference(realm, V));
