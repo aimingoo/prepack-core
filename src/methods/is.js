@@ -383,3 +383,14 @@ export function IsStatic(classElement: BabelNodeClassMethod): boolean {
   // $FlowFixMe need to backport static property to BabelNodeClassMethod
   return classElement.static;
 }
+
+// for Private-property prosols only, check prototype-chain
+export function IsPrivatePrototypeOf(base: ObjectValue, instance: ObjectValue): boolean {
+  let chain = instance.$GetPrototypeOf();
+  // invariant(instance.$Private && (instance.$Private.$GetPrototypeOf() === chain.$Private), 'hard check');
+  while (chain instanceof ObjectValue) {
+    if (chain.$Private === base) return true;
+    chain = chain.$GetPrototypeOf();
+  }
+  return false;
+}

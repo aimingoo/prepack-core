@@ -50,6 +50,7 @@ import {
   IteratorValue,
   IteratorClose,
   IsAnonymousFunctionDefinition,
+  IsPrivatePrototypeOf,
   HasOwnProperty,
   RequireObjectCoercible,
 } from "./index.js";
@@ -67,6 +68,16 @@ import type {
   BabelNodePattern,
 } from "@babel/types";
 import * as t from "@babel/types";
+
+function IsPrivatePrototypeOf2(base, instance) {  // hard check protected-chain
+  let chain = instance.$Private.$GetPrototypeOf(); // is X.prototype[[Protected]]
+  let parent = base.$GetPrototypeOf(); // is HomeObject.[[Protected]]
+  while (chain instanceof ObjectValue) {
+    if (chain === parent) return true;
+    chain = chain.$GetPrototypeOf();
+  }
+  return false;
+}
 
 export class EnvironmentImplementation {
   // 2.6 RestBindingInitialization (please suggest an appropriate section name)
@@ -322,10 +333,21 @@ export class EnvironmentImplementation {
         let thisObject = GetThisValue(realm, V);
         let baseObject = base.WithBaseObject();
         let privateSymbol = baseObject.$Get(referencedName, baseObject);
+        if (!(thisObject && thisObject.$Private)) return realm.intrinsics.undefined;
+
         let value = thisObject.$Private.$Get(privateSymbol, thisObject);
+
+        if ((value instanceof UndefinedValue) && // unresolved
+            !HasOwnProperty(realm, thisObject, privateSymbol) && // no overrided
+            IsPrivatePrototypeOf(baseObject, thisObject)) { // is subclass instance
+          let ownDesc = baseObject.$GetOwnProperty(privateSymbol); // for privated only
+          if (ownDesc) return ownDesc.value;
+        }
+
         if ((value instanceof ObjectValue) && value.$isInternal) {  // as sign only
           return baseObject.$Get(realm.intrinsics.internal, baseObject);
         }
+
         return value;
       }
 

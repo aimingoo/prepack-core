@@ -42,6 +42,7 @@ import {
   IsDataDescriptor,
   IsGenericDescriptor,
   IsPropertyKey,
+  IsPrivatePrototypeOf,
   MakeConstructor,
   SameValue,
   SameValuePartial,
@@ -1306,6 +1307,7 @@ export class PropertiesImplementation {
           return objectPrivate.$Set(privateSymbol, W, objectPrivate);
         }
 
+        // descriptor on thisObject's private-chain
         let parent = objectPrivate;
         while (!ownDesc) {
           parent = parent.$GetPrototypeOf();
@@ -1313,8 +1315,16 @@ export class PropertiesImplementation {
           ownDesc = parent.$GetOwnProperty(privateSymbol)
         }
 
-        invariant(ownDesc !== undefined);
+        // or, on baseObject's private scope
+        if (!ownDesc &&
+            IsPrivatePrototypeOf(baseObject, thisObject)) { // is subclass instance
+          parent = baseObject;
+          ownDesc = parent.$GetOwnProperty(privateSymbol); // for privated only
+        }
 
+        invariant(ownDesc !== undefined, "Can not resolve descriptor of private property.");
+
+        // call accessor or make new data descriptor
         if (IsAccessorDescriptor(realm, ownDesc)) {
           // @see OrdinarySetHelper() 6~9
           // return this.Set(realm, parent, privateSymbol, W, false);
