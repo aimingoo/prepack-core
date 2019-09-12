@@ -31,6 +31,7 @@ import { EnvironmentRecord, ObjectEnvironmentRecord, Reference, isPrivateEnviron
 import { CompilerDiagnostic, FatalError } from "../errors.js";
 import { HasOwnProperty } from "./has.js";
 import invariant from "../invariant.js";
+import parse from "../utils/parse.js";
 import {
   Call,
   Get,
@@ -1910,6 +1911,28 @@ export class PropertiesImplementation {
       return TryOverrideVisibilityAndResaveValue(P) || 
         Properties.DefinePropertyOrThrow(realm, O, TryWarpPrivateSymbolAndPutInternal(P), desc);
 
+      // publish private member
+      function PublishPrivateMember({value:from}, {value:as}) {
+        // @see, ClassDefinitionEvaluation() in ../evaluators/ClassDefinition.js
+        let getterFile = `class NeedClassForParsing { get ${as}() { return ${from}; } }`;
+        let setterFile = `class NeedClassForParsing { set ${as}(_${from}_) { ${from} = _${from}_; } }`;
+
+        let MethodDefinitionPicker = file => {
+          let {
+            program: {
+              body: [classDeclaration],
+            },
+          } = parse(realm, file);
+          invariant(classDeclaration.type === "ClassDeclaration");
+          let { body } = ((classDeclaration: any): BabelNodeClassDeclaration);
+          invariant(body.body[0].type === "ClassMethod");
+          return ((body.body[0]: any): BabelNodeClassMethod);
+        }
+
+        Properties.PropertyDefinitionEvaluation(realm, MethodDefinitionPicker(getterFile), object, env, strictCode, enumerable);
+        Properties.PropertyDefinitionEvaluation(realm, MethodDefinitionPicker(setterFile), object, env, strictCode, enumerable);
+      }
+
       // process 'as' clause and 'internal' prefix
       function TryOverrideVisibilityAndResaveValue(propKey) {
         if (!MethodDefinition.asFrom) return false; // tried, ignore
@@ -1921,10 +1944,21 @@ export class PropertiesImplementation {
         let privateSymbol, protectedMembers = object.$Protected, mildlyMode = true;
         let hasOwnProtectedMember = propKey => HasOwnProperty(realm, protectedMembers, propKey);
         let hasParentProtectedMember = propKey => !hasOwnProtectedMember(propKey) && protectedMembers.$HasProperty(propKey);
+        let InPrivateScope = propKey => targetObject.$Private.$HasProperty(propKey);
         let AllowPrivateKey = propKey => hasOwnProtectedMember(propKey) || !isUnscopabledOnProtectedChain(propKey);
 
         // experimental rules
         if (mildlyMode) hasParentProtectedMember = () => true;
+
+        if (MethodDefinition.accessibility === "public") {
+          invariant(MethodDefinition.value === null, "publish for member name only");
+          let fromKey = (MethodDefinition.asFrom === "itself") ? propKey
+            : new StringValue(realm, MethodDefinition.asFrom.name);
+          invariant(AllowPrivateKey(fromKey), "can not re-enter private scope");
+          invariant(InPrivateScope(fromKey), `no exist member name \`${fromKey.value}\``);
+          PublishPrivateMember(fromKey, propKey);
+          return true; // public with `as` syntax, break;
+        }
 
         if (MethodDefinition.asFrom !== "itself") { // [protected|private] y as x = 100;
           let fromKey = new StringValue(realm, MethodDefinition.asFrom.name);

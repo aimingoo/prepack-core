@@ -1,8 +1,8 @@
-# Prepack-core: proposal-protected-property
+# Prepack-core: proposal-public-property
 
-The prepack-core  for proposal-protected-property.
+The prepack-core  for proposal-public-property.
 
- - Support protected-property for class.
+ - Support public-property for class and object literals.
  - Testcases.
 
 
@@ -11,13 +11,13 @@ The prepack-core  for proposal-protected-property.
 
 ```bash
 # Pick this branch
-> git clone -b proposal-protected-property https://github.com/aimingoo/prepack-core
+> git clone -b proposal-public-property https://github.com/aimingoo/prepack-core
 
 # Init submodules
 > git submodule init
 > git submodule update
 #(OR, recursived clone)
-> git clone -b proposal-protected-property --recursive https://github.com/aimingoo/prepack-core
+> git clone -b proposal-public-property --recursive https://github.com/aimingoo/prepack-core
 
 # Install packages
 > npm install
@@ -39,7 +39,9 @@ The prepack-core  for proposal-protected-property.
 
 ```bash
 # run first testcase
-> npm run repl test/protected-property/simple-class.js
+> npm run repl test/public-property/simple-public.js
+100
+100
 100
 200
 ```
@@ -47,5 +49,5 @@ The prepack-core  for proposal-protected-property.
 
 ## History
 
-* 2019.08.20	first release.
+* 2019.09.13	first release.
 
