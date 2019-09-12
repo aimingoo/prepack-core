@@ -1914,6 +1914,10 @@ export class PropertiesImplementation {
       function TryOverrideVisibilityAndResaveValue(propKey) {
         if (!MethodDefinition.asFrom) return false; // tried, ignore
 
+        if (MethodDefinition.asFrom !== "itself") { // limited, temporary maybe
+            invariant(MethodDefinition.asFrom.type === "Identifier", "alias for identifier only");
+        }
+
         let privateSymbol, protectedMembers = object.$Protected, mildlyMode = true;
         let hasOwnProtectedMember = propKey => HasOwnProperty(realm, protectedMembers, propKey);
         let hasParentProtectedMember = propKey => !hasOwnProtectedMember(propKey) && protectedMembers.$HasProperty(propKey);
@@ -1923,8 +1927,6 @@ export class PropertiesImplementation {
         if (mildlyMode) hasParentProtectedMember = () => true;
 
         if (MethodDefinition.asFrom !== "itself") { // [protected|private] y as x = 100;
-          invariant(MethodDefinition.asFrom.type === "Identifier", "private member name must be identifier");
-
           let fromKey = new StringValue(realm, MethodDefinition.asFrom.name);
           invariant(AllowPrivateKey(fromKey), "can not re-enter private scope");
           invariant(hasParentProtectedMember(fromKey), "alias for inherited protected property only");
@@ -2161,6 +2163,7 @@ export class PropertiesImplementation {
 
       let desc = new PropertyDescriptor({
         value: propValue,
+        writable: true,
         enumerable: true,
         configurable: true,
       });
