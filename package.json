@@ -5,7 +5,7 @@
   "homepage": "https://github.com/aimingoo/prepack-core",
   "repository": {
     "type": "git",
-    "url": "git://github.com/aimingoo/prepack-core.git#proposal-protected-property"
+    "url": "git://github.com/aimingoo/prepack-core.git#proposal-public-property"
   },
   "bugs": {
     "url": "https://github.com/facebook/prepack/issues"
